@@ -1,0 +1,96 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: api-gateway
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+  cloud:
+    gateway:
+      default-filters:
+        - DedupeResponseHeader=Access-Control-Allow-Credentials Access-Control-Allow-Origin
+      globalcors:
+        corsConfigurations:
+          '[/**]':
+            allowedOrigins: "*"
+            allowedMethods:
+              - GET
+              - POST
+              - PUT
+              - DELETE
+              - OPTIONS
+            allowedHeaders: "*"
+      routes:
+        # Driver Location Service
+        - id: driver-location-service
+          uri: http://${DRIVER_LOCATION_HOST:localhost}:8081
+          predicates:
+            - Path=/api/v1/locations/**, /api/v1/drivers/**
+          filters:
+            - name: RequestRateLimiter
+              args:
+                redis-rate-limiter.replenishRate: 10000
+                redis-rate-limiter.burstCapacity: 20000
+                redis-rate-limiter.requestedTokens: 1
+
+        # Dispatch Service
+        - id: dispatch-service
+          uri: http://${DISPATCH_HOST:localhost}:8082
+          predicates:
+            - Path=/api/v1/rides/**
+          filters:
+            - name: RequestRateLimiter
+              args:
+                redis-rate-limiter.replenishRate: 1000
+                redis-rate-limiter.burstCapacity: 2000
+                redis-rate-limiter.requestedTokens: 1
+            - name: Retry
+              args:
+                retries: 2
+                statuses: SERVICE_UNAVAILABLE
+                methods: GET
+                backoff.firstBackoff: 100ms
+                backoff.maxBackoff: 1000ms
+
+        # Trip Service
+        - id: trip-service
+          uri: http://${TRIP_HOST:localhost}:8083
+          predicates:
+            - Path=/api/v1/trips/**
+
+        # Surge Pricing Service
+        - id: surge-pricing-service
+          uri: http://${SURGE_HOST:localhost}:8084
+          predicates:
+            - Path=/api/v1/surge/**
+
+        # Payment Service
+        - id: payment-service
+          uri: http://${PAYMENT_HOST:localhost}:8085
+          predicates:
+            - Path=/api/v1/payments/**
+
+        # Actuator health aggregation
+        - id: location-health
+          uri: http://${DRIVER_LOCATION_HOST:localhost}:8081
+          predicates:
+            - Path=/health/location/**
+          filters:
+            - RewritePath=/health/location/(?<segment>.*), /actuator/${segment}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,gateway
+  endpoint:
+    gateway:
+      enabled: true
+
+logging:
+  level:
+    com.ridehailing: INFO
+    org.springframework.cloud.gateway: INFO

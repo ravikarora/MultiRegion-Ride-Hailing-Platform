@@ -1,0 +1,44 @@
+server:
+  port: 8081
+  # Java 21 Project Loom: each request runs on a virtual thread instead of a platform thread.
+  # Enables handling 300k concurrent driver location updates without thread-pool exhaustion.
+  tomcat:
+    threads:
+      max: 200
+
+spring:
+  threads:
+    virtual:
+      enabled: true
+  application:
+    name: driver-location-service
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+      acks: all
+      retries: 3
+      properties:
+        enable.idempotence: true
+
+location:
+  snapshot:
+    interval-ms: 10000
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+  endpoint:
+    health:
+      show-details: always
+
+logging:
+  level:
+    com.ridehailing: INFO

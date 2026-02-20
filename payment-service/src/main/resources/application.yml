@@ -1,0 +1,67 @@
+server:
+  port: 8085
+  tomcat:
+    threads:
+      max: 200
+
+spring:
+  threads:
+    virtual:
+      enabled: true
+  application:
+    name: payment-service
+  datasource:
+    url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:ridehailing}
+    username: ${DB_USER:ridehailing}
+    password: ${DB_PASS:ridehailing}
+  jpa:
+    hibernate:
+      ddl-auto: none
+    open-in-view: false
+  flyway:
+    enabled: false
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+
+resilience4j:
+  circuitbreaker:
+    instances:
+      psp-gateway:
+        slidingWindowSize: 10
+        failureRateThreshold: 50
+        waitDurationInOpenState: 10s
+        permittedNumberOfCallsInHalfOpenState: 3
+        registerHealthIndicator: true
+  retry:
+    instances:
+      psp-retry:
+        maxAttempts: 3
+        waitDuration: 1s
+        exponentialBackoffMultiplier: 2
+        retryExceptions:
+          - com.ridehailing.payment.service.PspGateway.PspException
+          - java.io.IOException
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus,circuitbreakers
+  health:
+    circuitbreakers:
+      enabled: true
+
+payment:
+  reconciliation:
+    interval-ms: 300000   # run reconciliation every 5 minutes
+  stale-pending:
+    interval-ms: 600000   # check for stale PENDING payments every 10 minutes
+
+logging:
+  level:
+    com.ridehailing: INFO
+    io.github.resilience4j: INFO
